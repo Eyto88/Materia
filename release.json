@@ -1,0 +1,6 @@
+{
+ "version": "1.2.2",
+ "commit": "e4ddac0cf030692fa7e134fd0b75c2f78dcf5258",
+ "notes": "- Automatic updates: Materia checks for new versions at start-up and installs only the files that changed (settings, presets, styles and sessions are kept).\n- Help > Check for updates and Help > Restore previous version.\n- Materia loading screen and taskbar icon.",
+ "published": "2026-11-09T10:40:19"
+}
