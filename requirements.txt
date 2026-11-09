@@ -1,0 +1,16 @@
+# LabStudio runtime dependencies (Python 3.10 - 3.13).
+# Ranges: lower bounds = oldest versions known to work, upper bounds = next major release
+# (not yet tested). Tested together on: numpy 2.5, scipy 1.18, pandas 3.0, matplotlib 3.11,
+# PySide6 6.12, scikit-image 0.26, tifffile 2026.9, Pillow 12.3, openpyxl 3.1.
+numpy>=1.26,<3
+scipy>=1.11,<2
+pandas>=2.1,<4
+matplotlib>=3.8,<4
+PySide6>=6.6,<7
+scikit-image>=0.22,<1
+tifffile>=2023.7
+Pillow>=10,<13
+# spreadsheet import: .xlsx/.xlsm (openpyxl), .ods (odfpy), legacy .xls (xlrd)
+openpyxl>=3.1,<4
+odfpy>=1.4,<2
+xlrd>=2.0,<3
