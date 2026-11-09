@@ -1,6 +1,9 @@
 # Releasing a new Materia version (for whoever builds the next version)
 
-Updates are delivered as GitHub Releases on **Eyto88/materia** (public). Installed copies check for a newer
+Updates are delivered from **Eyto88/materia** (public) through the *repo channel*: the main branch holds the
+code + MANIFEST.json, and `release.json` announces the newest version and the commit to download
+(GitHub Releases also work if they can be created; installed copies try them first only when
+`update.json` says `"channel": "releases"`). Installed copies check for a newer
 release every time the launcher starts (Help ▸ Check for updates… does the same inside the app), download the
 release zip and replace **only files that changed**. User data is never touched: settings, presets, styles,
 logs live in `~/.labstudio` (or the registry); sessions are wherever the user saved them; `.venv`,
@@ -11,10 +14,12 @@ logs live in `~/.labstudio` (or the registry); sessions are wherever the user sa
 Steps for version X.Y.Z
 1. Make the changes; run `QT_QPA_PLATFORM=offscreen python -m pytest -q` (all green).
 2. Bump `__version__` in `labstudio/__init__.py` (semantic: 1.3.0, 1.3.1 …).
-3. Commit and push to `main` of Eyto88/materia.
-4. `python tools/make_release.py --publish --notes "- what changed, one line each"`
-   → builds `dist/Materia_vX.Y.Z.zip` (with MANIFEST.json + update.json) and creates release `vX.Y.Z`
-   with the zip attached. The release notes are what users see in the update prompt.
+3. Clone the repo next to the dev tree (`git clone https://github.com/Eyto88/materia ../materia`).
+4. `python tools/make_release.py --publish-repo ../materia --notes "- what changed, one line each" \
+      --trailer "Co-Authored-By: …"`
+   → syncs exactly the release files + MANIFEST.json into the clone, commits "Materia X.Y.Z", pushes,
+   then commits `release.json` (version, commit, notes) and pushes. The notes are what users see in the
+   update prompt. It also builds `dist/Materia_vX.Y.Z.zip` for a fresh manual install.
 5. Done: every installed copy offers the update at its next start.
 
 Rules

@@ -36,6 +36,7 @@ from dataclasses import dataclass, field
 
 MANIFEST = "MANIFEST.json"
 CONFIG = "update.json"
+RELEASE_INFO = "release.json"   # "repo" channel: announces the newest version on the main branch
 BACKUP_DIR = ".update_backup"
 # never shipped/overwritten/deleted by an update, even if a manifest lists them
 PROTECTED_PREFIXES = (".venv/", ".git/", BACKUP_DIR + "/", "update.json")
@@ -85,7 +86,7 @@ def iter_release_files(root: str):
                 continue
             full = os.path.join(dirpath, fn)
             rel = _rel(full, root)
-            if rel == CONFIG:  # shipped in the zip, but never overwritten by updates
+            if rel in (CONFIG, RELEASE_INFO):  # shipped/served, but never part of a release's file set
                 continue
             yield rel, full
 
@@ -165,12 +166,35 @@ class UpdateInfo:
 
 def check_for_update(app_root: str, *, timeout: float = 6.0, include_prerelease: bool = False) -> UpdateInfo | None:
     """Return UpdateInfo if a newer release exists, None if up to date or not configured. Raises on network
-    errors (callers decide whether to stay silent)."""
+    errors (callers decide whether to stay silent).
+
+    Channels (update.json "channel"):
+      "repo"     – read release.json from the main branch; download that commit's snapshot (default here),
+      "releases" – GitHub Releases (latest release + zip asset); falls back to "repo" if there are none.
+    """
     cfg = read_config(app_root)
     repo = cfg.get("repo")
     if not repo:
         return None
     current = local_version(app_root)
+    channel = cfg.get("channel", "releases")
+    rel_info = None
+    if channel != "repo":
+        try:
+            rel_info = _latest_from_releases(cfg, repo, timeout, include_prerelease)
+        except urllib.error.HTTPError as exc:
+            if exc.code != 404:
+                raise
+    if rel_info is None:
+        rel_info = _latest_from_repo(cfg, repo, timeout)
+    if rel_info is None or not is_newer(rel_info.version, current):
+        return None
+    rel_info.current = current
+    rel_info.extra["skipped"] = read_skip() == rel_info.version
+    return rel_info
+
+
+def _latest_from_releases(cfg, repo, timeout, include_prerelease) -> UpdateInfo | None:
     api = (cfg.get("api") or "https://api.github.com").rstrip("/")  # "api" override is for testing only
     if include_prerelease or cfg.get("prerelease"):
         rels = json.loads(_request(f"{api}/repos/{repo}/releases?per_page=10", timeout=timeout))
@@ -180,16 +204,30 @@ def check_for_update(app_root: str, *, timeout: float = 6.0, include_prerelease:
     if not rel:
         return None
     tag = rel.get("tag_name") or ""
-    version = tag.lstrip("vV")
-    if not is_newer(version, current):
-        return None
-    skipped = (cfg.get("skip_version") or read_skip(app_root))
     asset = next((a for a in rel.get("assets", []) if a.get("name", "").lower().endswith(".zip")), None)
-    return UpdateInfo(version=version, tag=tag, notes=(rel.get("body") or "").strip(),
+    return UpdateInfo(version=tag.lstrip("vV"), tag=tag, notes=(rel.get("body") or "").strip(),
                       zip_url=(asset or {}).get("browser_download_url") or rel.get("zipball_url"),
                       asset_api_url=(asset or {}).get("url"), published=rel.get("published_at", ""),
-                      size=(asset or {}).get("size", 0), current=current,
-                      extra={"skipped": skipped == version})
+                      size=(asset or {}).get("size", 0))
+
+
+def _latest_from_repo(cfg, repo, timeout) -> UpdateInfo | None:
+    raw = (cfg.get("raw") or "https://raw.githubusercontent.com").rstrip("/")
+    code = (cfg.get("codeload") or "https://codeload.github.com").rstrip("/")
+    branch = cfg.get("branch", "main")
+    try:
+        data = _request(f"{raw}/{repo}/{branch}/{RELEASE_INFO}?t={int(time.time())}",
+                        accept="application/json", timeout=timeout)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return None
+        raise
+    info = json.loads(data)
+    commit = info.get("commit") or branch
+    return UpdateInfo(version=str(info.get("version", "0")), tag=f"v{info.get('version')}",
+                      notes=(info.get("notes") or "").strip(), zip_url=f"{code}/{repo}/zip/{commit}",
+                      published=info.get("published", ""), size=int(info.get("size") or 0),
+                      extra={"commit": commit})
 
 
 def _skip_file() -> str:

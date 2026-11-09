@@ -30,9 +30,9 @@ offers **Update now / Later / Skip this version**, showing what's new. Only file
 your settings, presets, styles, sessions and any files of your own are kept, and packages are reinstalled only if
 needed. Inside the app: **Help ▸ Check for updates…** and **Help ▸ Restore previous version…**.
 
-## New in 1.2.1
+## New in 1.2.2
 
-- Automatic updates (see above).
+- Automatic updates (see above), delivered from the Eyto88/materia repository.
 
 ## New in 1.2
 

@@ -175,3 +175,37 @@ def test_real_tree_manifest_excludes_user_and_build_files():
     assert "launcher.pyw" in files and "labstudio/core/updater.py" in files
     assert not any(f.startswith((".venv/", ".git/", "dist/")) or "__pycache__" in f or f == "update.json"
                    for f in files)
+
+
+def test_repo_channel_release_json(installed, tmp_path, monkeypatch):
+    """No GitHub Releases: release.json on main announces the version; download the commit snapshot."""
+    data, _ = release_zip(new_release(tmp_path))
+    with open(os.path.join(installed, "update.json"), "w") as fh:
+        json.dump({"repo": "Eyto88/materia", "channel": "repo"}, fh)
+    calls = []
+
+    def fake_request(url, **k):
+        calls.append(url)
+        assert "raw.githubusercontent.com/Eyto88/materia/main/release.json" in url
+        return json.dumps({"version": "1.3.0", "commit": "abc123", "notes": "- New thing"}).encode()
+
+    monkeypatch.setattr(U, "_request", fake_request)
+    info = U.check_for_update(installed)
+    assert info.version == "1.3.0" and info.zip_url == "https://codeload.github.com/Eyto88/materia/zip/abc123"
+
+    class Resp(io.BytesIO):
+        headers = {"Content-Length": str(len(data))}
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+    monkeypatch.setattr(U.urllib.request, "urlopen", lambda req, **k: Resp(data))
+    res = U.apply_update(installed, info)
+    assert res.new_version == "1.3.0"
+
+
+def test_releases_404_falls_back_to_repo(installed, monkeypatch):
+    def fake_request(url, **k):
+        if "api.github.com" in url:
+            raise U.urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+        return json.dumps({"version": "1.2.0", "commit": "x"}).encode()  # same version -> no update
+    monkeypatch.setattr(U, "_request", fake_request)
+    assert U.check_for_update(installed) is None
